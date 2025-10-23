@@ -16,6 +16,7 @@ import HistoryList from './HistoryList';
 import AlertBanner from './AlertBanner';
 
 const Dashboard = () => {
+  console.log('Dashboard component loaded');
   const [sensorData, setSensorData] = useState({
     potenciometro: 0,
     timestamp: Date.now()
