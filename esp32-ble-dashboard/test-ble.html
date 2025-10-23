@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste BLE ESP32</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Teste BLE ESP32</h1>
+        <p>Este teste verifica se o ESP32 está a funcionar corretamente com BLE.</p>
+        
+        <div>
+            <button onclick="testBluetoothSupport()">1. Verificar Suporte Bluetooth</button>
+            <button onclick="scanDevices()">2. Procurar Dispositivos</button>
+            <button onclick="clearLog()">Limpar Log</button>
+        </div>
+        
+        <div id="log" class="log"></div>
+        
+        <div id="devices"></div>
+    </div>
+
+    <script>
+        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const POTENTIOMETER_CHAR_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        function testBluetoothSupport() {
+            log('🔍 Verificando suporte Bluetooth...', 'info');
+            
+            if (!navigator.bluetooth) {
+                log('❌ Web Bluetooth não é suportado neste navegador', 'error');
+                log('💡 Use Chrome ou Edge para Web Bluetooth API', 'info');
+                return false;
+            }
+            
+            log('✅ Web Bluetooth é suportado', 'success');
+            log('🌐 Navegador: ' + navigator.userAgent, 'info');
+            log('🔗 URL: ' + window.location.href, 'info');
+            
+            return true;
+        }
+        
+        async function scanDevices() {
+            if (!testBluetoothSupport()) return;
+            
+            log('🔍 Procurando dispositivos BLE...', 'info');
+            log('🎯 Procurando ESP32_BLE_Pot_LED...', 'info');
+            
+            try {
+                // Tentar com filtros específicos primeiro
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { name: 'ESP32_BLE_Pot_LED' },
+                        { name: 'ESP32' },
+                        { namePrefix: 'ESP' }
+                    ],
+                    optionalServices: [SERVICE_UUID]
+                });
+                
+                log('✅ Dispositivo encontrado com filtros específicos!', 'success');
+                log('📱 Nome: ' + (device.name || 'Desconhecido'), 'info');
+                log('🆔 ID: ' + device.id, 'info');
+                
+                displayDevice(device);
+                
+            } catch (error) {
+                log('⚠️ Filtros específicos falharam: ' + error.message, 'error');
+                log('🔄 Tentando aceitar todos os dispositivos...', 'info');
+                
+                try {
+                    const device = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: [SERVICE_UUID]
+                    });
+                    
+                    log('✅ Dispositivo encontrado aceitando todos!', 'success');
+                    log('📱 Nome: ' + (device.name || 'Desconhecido'), 'info');
+                    log('🆔 ID: ' + device.id, 'info');
+                    
+                    displayDevice(device);
+                    
+                } catch (error2) {
+                    log('❌ Erro ao procurar dispositivos: ' + error2.message, 'error');
+                    log('🔧 Verifique se o ESP32 está ligado e em modo BLE', 'info');
+                }
+            }
+        }
+        
+        function displayDevice(device) {
+            const devicesDiv = document.getElementById('devices');
+            devicesDiv.innerHTML = `
+                <div style="background: #e8f5e8; border: 1px solid #28a745; border-radius: 5px; padding: 15px; margin: 10px 0;">
+                    <h3>📱 Dispositivo Encontrado</h3>
+                    <p><strong>Nome:</strong> ${device.name || 'Desconhecido'}</p>
+                    <p><strong>ID:</strong> ${device.id}</p>
+                    <p><strong>Conectado:</strong> ${device.gatt.connected ? 'Sim' : 'Não'}</p>
+                    <button onclick="connectToDevice('${device.id}')">Conectar</button>
+                </div>
+            `;
+        }
+        
+        async function connectToDevice(deviceId) {
+            log('🔗 Tentando conectar ao dispositivo...', 'info');
+            // Implementar conexão aqui se necessário
+        }
+        
+        // Verificar suporte automaticamente ao carregar
+        window.onload = function() {
+            log('🚀 Teste BLE ESP32 iniciado', 'info');
+            testBluetoothSupport();
+        };
+    </script>
+</body>
+</html>
+
