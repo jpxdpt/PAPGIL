@@ -17,3 +17,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   Rede: http://[SEU_IP]:${PORT}`);
   console.log(`📱 Acesse no telemóvel: http://[SEU_IP]:${PORT}`);
 });
+

@@ -13,3 +13,4 @@ echo "📱 Aceda no telemóvel: http://$IP:3001"
 echo
 
 npm start
+

@@ -75,3 +75,4 @@ const SensorCard = ({
 
 export default SensorCard;
 
+

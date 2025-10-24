@@ -134,3 +134,4 @@ ifconfig | grep inet
 - **Teste primeiro** no computador
 - **Verifique permissões** do navegador
 - **Use HTTPS** se possível (mais seguro)
+
