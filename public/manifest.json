@@ -1,0 +1,24 @@
+{
+  "name": "ESP32 Baby Monitor Dashboard",
+  "short_name": "ESP32 Monitor",
+  "description": "Dashboard para monitorização de bebé com ESP32 e Bluetooth",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "permissions": [
+    "notifications"
+  ],
+  "notification": {
+    "icon": "/favicon.ico",
+    "badge": "/favicon.ico"
+  }
+}

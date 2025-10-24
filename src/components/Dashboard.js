@@ -47,6 +47,19 @@ const Dashboard = () => {
 
   const audioRef = useRef(null);
 
+  // Registrar Service Worker para notificações no telemóvel
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker registrado:', registration);
+        })
+        .catch((error) => {
+          console.log('Erro ao registrar Service Worker:', error);
+        });
+    }
+  }, []);
+
   // UUIDs do ESP32 BLE
   const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
   const POTENTIOMETER_CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
@@ -396,20 +409,53 @@ const Dashboard = () => {
 
       if (Notification.permission === 'granted') {
         console.log('Criando notificação...');
-        const notification = new Notification(title, {
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          ...options
-        });
         
-        notification.onclick = () => {
-          console.log('Notificação clicada');
-          window.focus();
-          notification.close();
-        };
+        // Tentar usar Service Worker primeiro (para telemóvel)
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          try {
+            console.log('Enviando notificação via Service Worker...');
+            navigator.serviceWorker.controller.postMessage({
+              type: 'NOTIFICATION',
+              title: title,
+              options: {
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                requireInteraction: true,
+                ...options
+              }
+            });
+            console.log('Notificação enviada via Service Worker');
+            return true;
+          } catch (swError) {
+            console.log('Erro ao usar Service Worker:', swError);
+          }
+        }
         
-        console.log('Notificação criada com sucesso');
-        return true;
+        // Fallback: tentar notificação direta (desktop)
+        if (typeof window !== 'undefined' && window.Notification) {
+          try {
+            const notification = new Notification(title, {
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              ...options
+            });
+            
+            notification.onclick = () => {
+              console.log('Notificação clicada');
+              window.focus();
+              notification.close();
+            };
+            
+            console.log('Notificação criada com sucesso');
+            return true;
+          } catch (notificationError) {
+            console.log('Erro ao criar notificação direta:', notificationError.message);
+            
+            // Fallback final: alert visual
+            showVisualAlert(title, options);
+            return true;
+          }
+        }
       } else if (Notification.permission !== 'denied') {
         console.log('Solicitando permissão...');
         const permission = await Notification.requestPermission();
@@ -426,9 +472,47 @@ const Dashboard = () => {
       return false;
     } catch (error) {
       console.error('Erro ao enviar notificação do sistema:', error);
-      alert('Erro ao enviar notificação: ' + error.message);
+      
+      // Fallback: alert visual
+      showVisualAlert(title, options);
       return false;
     }
+  };
+
+  // Função para mostrar alert visual
+  const showVisualAlert = (title, options) => {
+    console.log(`🔔 NOTIFICAÇÃO: ${title}`);
+    if (options.body) {
+      console.log(`📝 Detalhes: ${options.body}`);
+    }
+    
+    // Mostrar alert visual no dashboard
+    const alertDiv = document.createElement('div');
+    alertDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ef4444;
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 10000;
+      max-width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    `;
+    alertDiv.innerHTML = `
+      <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+      <div style="font-size: 0.9rem;">${options.body || ''}</div>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Remover após 5 segundos
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.parentNode.removeChild(alertDiv);
+      }
+    }, 5000);
   };
 
   // Solicitar permissão para notificações do sistema
