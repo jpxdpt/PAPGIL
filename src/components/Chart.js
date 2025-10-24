@@ -41,7 +41,26 @@ const Chart = ({ data = [] }) => {
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
-        fill: true,
+        fill: false,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Temperatura (°C)',
+        data: chartData.map(item => item.temperatura || 0),
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        tension: 0.4,
+        fill: false,
+        yAxisID: 'y1',
+      },
+      {
+        label: 'Humidade (%)',
+        data: chartData.map(item => item.humidade || 0),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: false,
+        yAxisID: 'y2',
       }
     ]
   };
@@ -55,7 +74,7 @@ const Chart = ({ data = [] }) => {
       },
       title: {
         display: true,
-        text: 'Histórico do Potenciômetro',
+        text: 'Histórico dos Sensores',
         font: {
           size: 16,
           weight: 'bold'
@@ -64,6 +83,9 @@ const Chart = ({ data = [] }) => {
     },
         scales: {
           y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
             beginAtZero: true,
             max: 4095, // ESP32 ADC resolution (0-4095)
             grid: {
@@ -73,6 +95,25 @@ const Chart = ({ data = [] }) => {
               color: '#6b7280',
               stepSize: 500, // Mostrar marcas a cada 500
             }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            beginAtZero: true,
+            max: 50, // Temperatura máxima
+            grid: {
+              drawOnChartArea: false,
+            },
+            ticks: {
+              color: '#ef4444',
+            }
+          },
+          y2: {
+            type: 'linear',
+            display: false, // Ocultar eixo Y2 para humidade
+            beginAtZero: true,
+            max: 100, // Humidade máxima
           },
       x: {
         grid: {

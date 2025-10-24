@@ -8,7 +8,9 @@ import {
   Bluetooth,
   BluetoothConnected,
   Lightbulb,
-  LightbulbOff
+  LightbulbOff,
+  Thermometer,
+  Droplets
 } from 'lucide-react';
 import SensorCard from './SensorCard';
 import Chart from './Chart';
@@ -19,6 +21,8 @@ const Dashboard = () => {
   console.log('Dashboard component loaded');
   const [sensorData, setSensorData] = useState({
     potenciometro: 0,
+    temperatura: 0,
+    humidade: 0,
     timestamp: Date.now()
   });
   
@@ -31,6 +35,8 @@ const Dashboard = () => {
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [gattServer, setGattServer] = useState(null);
   const [potentiometerCharacteristic, setPotentiometerCharacteristic] = useState(null);
+  const [temperatureCharacteristic, setTemperatureCharacteristic] = useState(null);
+  const [humidityCharacteristic, setHumidityCharacteristic] = useState(null);
   const [ledCharacteristic, setLedCharacteristic] = useState(null);
   const [notificationCharacteristic, setNotificationCharacteristic] = useState(null);
   const [ledState, setLedState] = useState(false);
@@ -63,6 +69,8 @@ const Dashboard = () => {
   // UUIDs do ESP32 BLE
   const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
   const POTENTIOMETER_CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  const TEMPERATURE_CHARACTERISTIC_UUID = 'd0ffee01-1234-5678-9abc-def012345678';
+  const HUMIDITY_CHARACTERISTIC_UUID = 'e0ffee01-1234-5678-9abc-def012345678';
   const NOTIFICATION_CHARACTERISTIC_UUID = 'c0ffee01-1234-5678-9abc-def012345678';
 
   // Procurar dispositivos ESP32 BLE
@@ -156,12 +164,27 @@ const Dashboard = () => {
       
       // Obter característica do potenciômetro
       const potChar = await service.getCharacteristic(POTENTIOMETER_CHARACTERISTIC_UUID);
-      
       setPotentiometerCharacteristic(potChar);
+      
+      // Obter característica de temperatura
+      const tempChar = await service.getCharacteristic(TEMPERATURE_CHARACTERISTIC_UUID);
+      setTemperatureCharacteristic(tempChar);
+      
+      // Obter característica de humidade
+      const humidityChar = await service.getCharacteristic(HUMIDITY_CHARACTERISTIC_UUID);
+      setHumidityCharacteristic(humidityChar);
       
       // Configurar notificações para o potenciômetro
       await potChar.startNotifications();
       potChar.addEventListener('characteristicvaluechanged', handlePotentiometerData);
+      
+      // Configurar notificações para temperatura
+      await tempChar.startNotifications();
+      tempChar.addEventListener('characteristicvaluechanged', handleTemperatureData);
+      
+      // Configurar notificações para humidade
+      await humidityChar.startNotifications();
+      humidityChar.addEventListener('characteristicvaluechanged', handleHumidityData);
       
       // Obter característica de notificação (se disponível)
       try {
@@ -192,6 +215,60 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Erro ao conectar:', error);
       alert('Erro ao conectar ao ESP32: ' + error.message);
+    }
+  };
+
+  // Processar dados de temperatura
+  const handleTemperatureData = (event) => {
+    const dataView = event.target.value;
+    
+    let value;
+    try {
+      const decodedString = new TextDecoder().decode(dataView);
+      value = parseFloat(decodedString.trim());
+      
+      if (isNaN(value)) {
+        console.warn('Valor de temperatura inválido:', decodedString);
+        return;
+      }
+      
+      console.log('Temperatura recebida:', value);
+      
+      setSensorData(prev => ({
+        ...prev,
+        temperatura: value,
+        timestamp: Date.now()
+      }));
+      
+    } catch (error) {
+      console.error('Erro ao decodificar temperatura:', error);
+    }
+  };
+
+  // Processar dados de humidade
+  const handleHumidityData = (event) => {
+    const dataView = event.target.value;
+    
+    let value;
+    try {
+      const decodedString = new TextDecoder().decode(dataView);
+      value = parseFloat(decodedString.trim());
+      
+      if (isNaN(value)) {
+        console.warn('Valor de humidade inválido:', decodedString);
+        return;
+      }
+      
+      console.log('Humidade recebida:', value);
+      
+      setSensorData(prev => ({
+        ...prev,
+        humidade: value,
+        timestamp: Date.now()
+      }));
+      
+    } catch (error) {
+      console.error('Erro ao decodificar humidade:', error);
     }
   };
 
@@ -292,6 +369,8 @@ const Dashboard = () => {
     setBluetoothDevice(null);
     setGattServer(null);
     setPotentiometerCharacteristic(null);
+    setTemperatureCharacteristic(null);
+    setHumidityCharacteristic(null);
   };
 
   // LED é controlado automaticamente pelo ESP32 baseado no potenciômetro
@@ -879,6 +958,30 @@ const Dashboard = () => {
                 />
           
           <SensorCard
+            title="Temperatura"
+            icon={<Thermometer size={24} />}
+            value={sensorData.temperatura}
+            unit="°C"
+            status={sensorData.temperatura > 30 ? 'alert' : sensorData.temperatura > 25 ? 'warning' : 'normal'}
+            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
+            limite="30°C"
+            maxValue="50°C"
+            color={sensorData.temperatura > 30 ? "#ef4444" : sensorData.temperatura > 25 ? "#f59e0b" : "#10b981"}
+          />
+
+          <SensorCard
+            title="Humidade"
+            icon={<Droplets size={24} />}
+            value={sensorData.humidade}
+            unit="%"
+            status={sensorData.humidade > 80 ? 'alert' : sensorData.humidade > 60 ? 'warning' : 'normal'}
+            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
+            limite="80%"
+            maxValue="100%"
+            color={sensorData.humidade > 80 ? "#ef4444" : sensorData.humidade > 60 ? "#f59e0b" : "#3b82f6"}
+          />
+          
+          <SensorCard
             title="LED Status"
             icon={<Lightbulb size={24} />}
             value={sensorData.potenciometro > settings.limitePotenciometro ? 'Ligado' : 'Desligado'}
@@ -894,7 +997,7 @@ const Dashboard = () => {
         <div className="charts-section">
           <Chart 
             data={history} 
-            title="Histórico do Potenciômetro"
+            title="Histórico dos Sensores"
             height={300}
           />
         </div>

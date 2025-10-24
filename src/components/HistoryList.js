@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Activity } from 'lucide-react';
+import { Clock, Activity, Thermometer, Droplets } from 'lucide-react';
 
 const HistoryList = ({ history = [] }) => {
   const formatTime = (timestamp) => {
@@ -28,7 +28,7 @@ const HistoryList = ({ history = [] }) => {
         <Clock size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
         <p>Nenhum dado registado ainda</p>
         <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>
-          Inicie a monitorização para ver os dados do potenciômetro
+          Inicie a monitorização para ver os dados dos sensores
         </p>
       </div>
     );
@@ -44,9 +44,17 @@ const HistoryList = ({ history = [] }) => {
           </div>
           
           <div className="history-values">
-            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <Activity size={14} style={{ color: '#3b82f6' }} />
               <span>Potenciômetro: <strong>{item.potenciometro}</strong></span>
+            </div>
+            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <Thermometer size={14} style={{ color: '#ef4444' }} />
+              <span>Temperatura: <strong>{item.temperatura || 0}°C</strong></span>
+            </div>
+            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Droplets size={14} style={{ color: '#3b82f6' }} />
+              <span>Humidade: <strong>{item.humidade || 0}%</strong></span>
             </div>
           </div>
           

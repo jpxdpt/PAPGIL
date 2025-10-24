@@ -27,6 +27,7 @@ npm start
 
 ### **Funcionalidades**
 - 📊 **Dados em Tempo Real** - Valores dos sensores atualizados
+- 🌡️ **Temperatura e Humidade** - Monitorização com sensor DHT11
 - 🚨 **Alertas Visuais e Sonoros** - Notificações para valores críticos
 - 📈 **Histórico Completo** - Gráficos e lista dos últimos 100 registos
 - 📱 **Interface Responsiva** - Funciona em desktop e mobile
@@ -34,15 +35,22 @@ npm start
 
 ## 🔧 Como Usar
 
-### 1. Conectar ao HC-05
-1. **Clique em "Conectar HC-05"** - Simula a conexão
+### 1. Conectar ao ESP32
+1. **Clique em "Conectar ESP32"** - Simula a conexão BLE
 2. **Sistema Conectado** - Mostra status de conexão
-3. **Dados Simulados** - Recebe dados como se fosse do Arduino
+3. **Dados Simulados** - Recebe dados como se fosse do ESP32
 
-### 2. Monitorizar
+### 2. Monitorizar Sensores
 1. **Iniciar Monitorização** - Clique no botão play
-2. **Ver Dados** - Valores em tempo real dos sensores
-3. **Alertas** - Notificações quando valores ultrapassam limites
+2. **Ver Dados** - Valores em tempo real dos sensores:
+   - **Potenciômetro**: Simula pressão (0-4095)
+   - **Temperatura**: Dados do DHT11 (°C)
+   - **Humidade**: Dados do DHT11 (%)
+   - **LED Status**: Estado automático
+3. **Alertas** - Notificações quando valores ultrapassam limites:
+   - **Temperatura**: > 25°C (amarelo), > 30°C (vermelho)
+   - **Humidade**: > 60% (amarelo), > 80% (vermelho)
+   - **Potenciômetro**: > 2000 (LED liga)
 4. **Histórico** - Gráficos e lista de dados
 
 ## 🎯 Vantagens desta Solução
@@ -58,6 +66,24 @@ npm start
 - 🧪 **Testes** - Testar interface e alertas
 - 📱 **Protótipos** - Desenvolver e testar funcionalidades
 - 👥 **Apresentações** - Mostrar o sistema a outros
+
+## 🌡️ Sensor DHT11
+
+### **Configuração**
+- **Sensor**: DHT11 (Temperatura e Humidade)
+- **Pino**: GPIO 4 do ESP32
+- **Precisão**: ±2°C (temperatura), ±5% (humidade)
+- **Biblioteca**: DHT sensor library (Adafruit)
+
+### **Funcionalidades**
+- **Temperatura**: Monitorização em tempo real
+- **Humidade**: Monitorização em tempo real
+- **Alertas**: Automáticos para valores críticos
+- **Gráficos**: Visualização histórica
+- **BLE**: Transmissão sem fios para dashboard
+
+### **Guia Completo**
+Ver `DHT11_SETUP.md` para instruções detalhadas de configuração.
 
 ## 📊 Estrutura do Projeto
 

@@ -2,20 +2,32 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
+#include <DHT.h>
+#include <ArduinoJson.h>
 
 #define potenciometroPin 34
 #define pinoLED 2
+#define DHTPIN 4
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
 
 // UUIDs do serviço e características
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define POTENTIOMETER_CHAR_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define TEMPERATURE_CHAR_UUID "d0ffee01-1234-5678-9abc-def012345678"
+#define HUMIDITY_CHAR_UUID "e0ffee01-1234-5678-9abc-def012345678"
 #define NOTIFICATION_CHAR_UUID "c0ffee01-1234-5678-9abc-def012345678"
 
 BLECharacteristic *potCharacteristic;
+BLECharacteristic *tempCharacteristic;
+BLECharacteristic *humidityCharacteristic;
 BLECharacteristic *notificationCharacteristic;
 bool dispositivoConectado = false;
 int valorPot = 0;
 const int limite = 2000;
+float temperatura = 0;
+float humidade = 0;
 
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
@@ -82,6 +94,9 @@ void setup() {
   Serial.begin(115200);
   pinMode(potenciometroPin, INPUT);
   pinMode(pinoLED, OUTPUT);
+  
+  // Inicializar sensor DHT11
+  dht.begin();
 
   BLEDevice::init("ESP32_BLE_Pot_LED");
   BLEServer *pServer = BLEDevice::createServer();
@@ -95,6 +110,20 @@ void setup() {
     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
   );
   potCharacteristic->addDescriptor(new BLE2902());
+
+  // Característica de temperatura (READ + NOTIFY)
+  tempCharacteristic = pService->createCharacteristic(
+    TEMPERATURE_CHAR_UUID,
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
+  tempCharacteristic->addDescriptor(new BLE2902());
+
+  // Característica de humidade (READ + NOTIFY)
+  humidityCharacteristic = pService->createCharacteristic(
+    HUMIDITY_CHAR_UUID,
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
+  humidityCharacteristic->addDescriptor(new BLE2902());
 
   // Característica de notificação (WRITE)
   notificationCharacteristic = pService->createCharacteristic(
@@ -119,6 +148,17 @@ void setup() {
 void loop() {
   valorPot = analogRead(potenciometroPin);
 
+  // Ler temperatura e humidade do DHT11
+  temperatura = dht.readTemperature();
+  humidade = dht.readHumidity();
+
+  // Verificar se a leitura é válida
+  if (isnan(temperatura) || isnan(humidade)) {
+    Serial.println("Erro ao ler DHT11!");
+    temperatura = 0;
+    humidade = 0;
+  }
+
   // Controlo automático do LED baseado no potenciômetro
   if (valorPot > limite) {
     digitalWrite(pinoLED, HIGH);
@@ -126,14 +166,28 @@ void loop() {
     digitalWrite(pinoLED, LOW);
   }
 
-  Serial.print("Valor do potenciômetro: ");
-  Serial.println(valorPot);
+  Serial.print("Potenciômetro: ");
+  Serial.print(valorPot);
+  Serial.print(" | Temperatura: ");
+  Serial.print(temperatura);
+  Serial.print("°C | Humidade: ");
+  Serial.print(humidade);
+  Serial.println("%");
 
-  // Enviar dados do potenciômetro se conectado
+  // Enviar dados se conectado
   if (dispositivoConectado) {
+    // Enviar potenciômetro
     potCharacteristic->setValue(String(valorPot));
     potCharacteristic->notify();
+    
+    // Enviar temperatura
+    tempCharacteristic->setValue(String(temperatura));
+    tempCharacteristic->notify();
+    
+    // Enviar humidade
+    humidityCharacteristic->setValue(String(humidade));
+    humidityCharacteristic->notify();
   }
 
-  delay(200);
+  delay(2000); // DHT11 precisa de pelo menos 2 segundos entre leituras
 }
