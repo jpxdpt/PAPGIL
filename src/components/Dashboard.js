@@ -32,12 +32,14 @@ const Dashboard = () => {
   const [gattServer, setGattServer] = useState(null);
   const [potentiometerCharacteristic, setPotentiometerCharacteristic] = useState(null);
   const [ledCharacteristic, setLedCharacteristic] = useState(null);
+  const [notificationCharacteristic, setNotificationCharacteristic] = useState(null);
   const [ledState, setLedState] = useState(false);
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [settings, setSettings] = useState({
     limitePotenciometro: 2000, // Limite do LED para ESP32 (0-4095)
-    alertasAtivos: true
+    alertasAtivos: true,
+    notificacaoSempre: false // Notificar sempre que passar o limite
   });
   const [showLedPopup, setShowLedPopup] = useState(false);
   const [ledPopupMessage, setLedPopupMessage] = useState('');
@@ -48,6 +50,7 @@ const Dashboard = () => {
   // UUIDs do ESP32 BLE
   const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
   const POTENTIOMETER_CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  const NOTIFICATION_CHARACTERISTIC_UUID = 'c0ffee01-1234-5678-9abc-def012345678';
 
   // Procurar dispositivos ESP32 BLE
   const scanForDevices = async () => {
@@ -147,6 +150,15 @@ const Dashboard = () => {
       await potChar.startNotifications();
       potChar.addEventListener('characteristicvaluechanged', handlePotentiometerData);
       
+      // Obter característica de notificação (se disponível)
+      try {
+        const notifChar = await service.getCharacteristic(NOTIFICATION_CHARACTERISTIC_UUID);
+        setNotificationCharacteristic(notifChar);
+        console.log('Característica de notificação configurada');
+      } catch (error) {
+        console.log('Característica de notificação não disponível:', error.message);
+      }
+      
       // Adicionar listener para desconexão
       device.device.addEventListener('gattserverdisconnected', () => {
         console.log('ESP32 desconectado');
@@ -204,15 +216,43 @@ const Dashboard = () => {
     
     // Verificar mudança do estado do LED
     const currentLedState = value > settings.limitePotenciometro;
+    console.log('Estado do LED:', {
+      valor: value,
+      limite: settings.limitePotenciometro,
+      currentLedState,
+      previousLedState,
+      mudou: currentLedState && !previousLedState
+    });
+    
     if (currentLedState && !previousLedState) {
       // LED acabou de ligar
+      console.log('🚨 LED LIGOU! Enviando notificação...');
       setLedPopupMessage(`🚨 LED LIGADO! Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`);
       setShowLedPopup(true);
+      
+      // Enviar notificação do sistema
+      sendSystemNotification('🚨 LED LIGADO!', {
+        body: `Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`,
+        tag: 'led-alert',
+        requireInteraction: true
+      });
       
       // Auto-fechar o pop-up após 5 segundos
       setTimeout(() => {
         setShowLedPopup(false);
       }, 5000);
+    } else if (currentLedState && settings.notificacaoSempre) {
+      // LED continua ligado mas notificar sempre se ativado
+      console.log('🚨 LED CONTINUA LIGADO! Enviando notificação...');
+      sendSystemNotification('🚨 LED LIGADO!', {
+        body: `Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`,
+        tag: 'led-alert-continuous',
+        requireInteraction: true
+      });
+    } else if (currentLedState) {
+      console.log('LED continua ligado, não enviando notificação');
+    } else {
+      console.log('LED desligado');
     }
     setPreviousLedState(currentLedState);
     
@@ -293,6 +333,113 @@ const Dashboard = () => {
     setIsScanning(false);
   };
 
+  // Enviar notificação para o ESP32
+  const sendNotification = async (message, type = 'info') => {
+    try {
+      if (!notificationCharacteristic) {
+        console.log('Característica de notificação não disponível');
+        return false;
+      }
+
+      // Criar payload da notificação
+      const notificationData = {
+        type: type, // 'info', 'warning', 'alert', 'success'
+        message: message,
+        timestamp: Date.now()
+      };
+
+      // Converter para ArrayBuffer
+      const encoder = new TextEncoder();
+      const data = encoder.encode(JSON.stringify(notificationData));
+      
+      // Enviar para o ESP32
+      await notificationCharacteristic.writeValue(data);
+      
+      console.log('Notificação enviada:', notificationData);
+      return true;
+      
+    } catch (error) {
+      console.error('Erro ao enviar notificação:', error);
+      return false;
+    }
+  };
+
+  // Funções de notificação específicas
+  const sendAlertNotification = async (message) => {
+    return await sendNotification(message, 'alert');
+  };
+
+  const sendWarningNotification = async (message) => {
+    return await sendNotification(message, 'warning');
+  };
+
+  const sendInfoNotification = async (message) => {
+    return await sendNotification(message, 'info');
+  };
+
+  const sendSuccessNotification = async (message) => {
+    return await sendNotification(message, 'success');
+  };
+
+  // Enviar notificação do sistema (barra de notificações)
+  const sendSystemNotification = async (title, options = {}) => {
+    try {
+      console.log('Tentando enviar notificação do sistema:', title);
+      
+      if (!('Notification' in window)) {
+        console.log('Este navegador não suporta notificações do sistema');
+        alert('Este navegador não suporta notificações do sistema');
+        return false;
+      }
+
+      console.log('Permissão atual:', Notification.permission);
+
+      if (Notification.permission === 'granted') {
+        console.log('Criando notificação...');
+        const notification = new Notification(title, {
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          ...options
+        });
+        
+        notification.onclick = () => {
+          console.log('Notificação clicada');
+          window.focus();
+          notification.close();
+        };
+        
+        console.log('Notificação criada com sucesso');
+        return true;
+      } else if (Notification.permission !== 'denied') {
+        console.log('Solicitando permissão...');
+        const permission = await Notification.requestPermission();
+        console.log('Permissão concedida:', permission);
+        if (permission === 'granted') {
+          return await sendSystemNotification(title, options);
+        } else {
+          alert('Permissão de notificação negada');
+        }
+      } else {
+        alert('Permissão de notificação foi negada anteriormente');
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Erro ao enviar notificação do sistema:', error);
+      alert('Erro ao enviar notificação: ' + error.message);
+      return false;
+    }
+  };
+
+  // Solicitar permissão para notificações do sistema
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
+    }
+    return Notification.permission === 'granted';
+  };
+
   return (
     <div className="dashboard">
       <audio ref={audioRef} preload="auto">
@@ -348,6 +495,45 @@ const Dashboard = () => {
                   <BluetoothConnected size={16} />
                   Desconectar
                 </button>
+                
+                {/* Botões de Notificação */}
+                <div className="notification-controls" style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button 
+                    className="btn btn-info"
+                    onClick={() => sendInfoNotification('Notificação de informação do dashboard')}
+                    disabled={!notificationCharacteristic}
+                    title="Enviar notificação de informação"
+                  >
+                    📢 Info
+                  </button>
+                  
+                  <button 
+                    className="btn btn-warning"
+                    onClick={() => sendWarningNotification('⚠️ Alerta: Verificar sistema')}
+                    disabled={!notificationCharacteristic}
+                    title="Enviar alerta"
+                  >
+                    ⚠️ Alerta
+                  </button>
+                  
+                  <button 
+                    className="btn btn-success"
+                    onClick={() => sendSuccessNotification('✅ Sistema funcionando perfeitamente')}
+                    disabled={!notificationCharacteristic}
+                    title="Enviar notificação de sucesso"
+                  >
+                    ✅ Sucesso
+                  </button>
+                  
+                  <button 
+                    className="btn btn-danger"
+                    onClick={() => sendAlertNotification('🚨 ALERTA CRÍTICO: Ação necessária!')}
+                    disabled={!notificationCharacteristic}
+                    title="Enviar alerta crítico"
+                  >
+                    🚨 Crítico
+                  </button>
+                </div>
               </>
             )}
             
@@ -357,6 +543,54 @@ const Dashboard = () => {
             >
               <RotateCcw size={16} />
               Limpar Histórico
+            </button>
+            
+            <button 
+              className="btn btn-secondary"
+              onClick={requestNotificationPermission}
+              title="Permitir notificações do sistema"
+            >
+              🔔 Notificações
+            </button>
+            
+            <button 
+              className="btn btn-info"
+              onClick={() => sendSystemNotification('🧪 Teste de Notificação', {
+                body: 'Esta é uma notificação de teste do sistema!',
+                tag: 'test-notification'
+              })}
+              title="Testar notificação do sistema"
+            >
+              🧪 Testar
+            </button>
+            
+            <button 
+              className="btn btn-warning"
+              onClick={() => {
+                console.log('Testando notificação de LED...');
+                sendSystemNotification('🚨 LED LIGADO! (TESTE)', {
+                  body: `Potenciômetro: ${sensorData.potenciometro} (Limite: ${settings.limitePotenciometro})`,
+                  tag: 'led-alert-test',
+                  requireInteraction: true
+                });
+              }}
+              title="Testar notificação de LED"
+            >
+              🚨 Teste LED
+            </button>
+            
+            <button 
+              className={`btn ${settings.notificacaoSempre ? 'btn-success' : 'btn-secondary'}`}
+              onClick={() => {
+                setSettings(prev => ({
+                  ...prev,
+                  notificacaoSempre: !prev.notificacaoSempre
+                }));
+                console.log('Notificação sempre:', !settings.notificacaoSempre);
+              }}
+              title={settings.notificacaoSempre ? 'Desativar notificações contínuas' : 'Ativar notificações contínuas'}
+            >
+              {settings.notificacaoSempre ? '🔔 Sempre' : '🔕 Só Mudança'}
             </button>
           </div>
         </div>
