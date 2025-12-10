@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Activity, Thermometer, Droplets } from 'lucide-react';
+import { Clock, Activity, Thermometer, Droplets, AlertTriangle } from 'lucide-react';
 
 const HistoryList = ({ history = [] }) => {
   const formatTime = (timestamp) => {
@@ -10,8 +10,8 @@ const HistoryList = ({ history = [] }) => {
     });
   };
 
-  const getStatusIcon = (potenciometro, limitePotenciometro) => {
-    if (potenciometro > limitePotenciometro) {
+  const getStatusIcon = (som, chorar) => {
+    if (chorar || som >= 200) {
       return <span style={{ color: '#ef4444' }}>⚠️</span>;
     }
     return <span style={{ color: '#10b981' }}>✅</span>;
@@ -46,7 +46,15 @@ const HistoryList = ({ history = [] }) => {
           <div className="history-values">
             <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <Activity size={14} style={{ color: '#3b82f6' }} />
-              <span>Potenciômetro: <strong>{item.potenciometro}</strong></span>
+              <span>Botão: <strong>{item.botao === 1 ? 'Sentado' : 'Não sentado'}</strong></span>
+            </div>
+            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <AlertTriangle size={14} style={{ color: '#f59e0b' }} />
+              <span>Som (bruto): <strong>{item.som}</strong></span>
+            </div>
+            <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <AlertTriangle size={14} style={{ color: item.chorar ? '#ef4444' : '#10b981' }} />
+              <span>Estado: <strong>{item.chorar ? 'A chorar' : 'Calmo'}</strong></span>
             </div>
             <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <Thermometer size={14} style={{ color: '#ef4444' }} />
@@ -58,9 +66,9 @@ const HistoryList = ({ history = [] }) => {
             </div>
           </div>
           
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {getStatusIcon(item.potenciometro, 2000)} {/* Limite do LED ESP32 */}
-                  </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {getStatusIcon(item.som, item.chorar)}
+          </div>
         </div>
       ))}
     </div>

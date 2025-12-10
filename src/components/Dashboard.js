@@ -8,7 +8,6 @@ import {
   Bluetooth,
   BluetoothConnected,
   Lightbulb,
-  LightbulbOff,
   Thermometer,
   Droplets
 } from 'lucide-react';
@@ -20,7 +19,9 @@ import AlertBanner from './AlertBanner';
 const Dashboard = () => {
   console.log('Dashboard component loaded');
   const [sensorData, setSensorData] = useState({
-    potenciometro: 0,
+    botao: 0,
+    som: 0,
+    chorar: false,
     temperatura: 0,
     humidade: 0,
     timestamp: Date.now()
@@ -34,24 +35,21 @@ const Dashboard = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [gattServer, setGattServer] = useState(null);
-  const [potentiometerCharacteristic, setPotentiometerCharacteristic] = useState(null);
+  const [buttonCharacteristic, setButtonCharacteristic] = useState(null);
+  const [soundCharacteristic, setSoundCharacteristic] = useState(null);
+  const [soundStatusCharacteristic, setSoundStatusCharacteristic] = useState(null);
   const [temperatureCharacteristic, setTemperatureCharacteristic] = useState(null);
   const [humidityCharacteristic, setHumidityCharacteristic] = useState(null);
-  const [ledCharacteristic, setLedCharacteristic] = useState(null);
   const [notificationCharacteristic, setNotificationCharacteristic] = useState(null);
-  const [ledState, setLedState] = useState(false);
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [settings, setSettings] = useState({
-    limitePotenciometro: 2000, // Limite do LED para ESP32 (0-4095)
+    limiteSom: 200, // Limiar para considerar "a chorar"
     alertasAtivos: true,
     notificacaoSempre: false // Notificar sempre que passar o limite
   });
-  const [showLedPopup, setShowLedPopup] = useState(false);
-  const [ledPopupMessage, setLedPopupMessage] = useState('');
-  const [previousLedState, setPreviousLedState] = useState(false);
-
   const audioRef = useRef(null);
+  const lastUpdateRef = useRef(0); // evitar updates excessivos/visíveis
 
   // Registrar Service Worker para notificações no telemóvel
   useEffect(() => {
@@ -68,7 +66,9 @@ const Dashboard = () => {
 
   // UUIDs do ESP32 BLE
   const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-  const POTENTIOMETER_CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  const BUTTON_CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  const SOUND_CHARACTERISTIC_UUID = 'f0ffee01-1234-5678-9abc-def012345678';
+  const SOUND_STATUS_CHARACTERISTIC_UUID = 'f0ffee02-1234-5678-9abc-def012345678';
   const TEMPERATURE_CHARACTERISTIC_UUID = 'd0ffee01-1234-5678-9abc-def012345678';
   const HUMIDITY_CHARACTERISTIC_UUID = 'e0ffee01-1234-5678-9abc-def012345678';
   const NOTIFICATION_CHARACTERISTIC_UUID = 'c0ffee01-1234-5678-9abc-def012345678';
@@ -146,6 +146,77 @@ const Dashboard = () => {
     }
   };
 
+  // Função utilitária para aplicar dados com leve throttle (suavizar UI)
+  const pushSensorData = (partialData) => {
+    const now = Date.now();
+    setSensorData(prev => {
+      const merged = { ...prev, ...partialData, timestamp: now };
+
+      // Evita re-render "tremido" se chegarem várias notificações seguidas
+      if (now - lastUpdateRef.current >= 800) {
+        lastUpdateRef.current = now;
+        setHistory(prevHist => [
+          { ...merged, id: now },
+          ...prevHist.slice(0, 99)
+        ]);
+        checkAlerts(merged);
+      }
+
+      return merged;
+    });
+  };
+
+  // Processar dados do som bruto
+  const handleSoundData = (event) => {
+    const dataView = event.target.value;
+
+    let value;
+    try {
+      const decodedString = new TextDecoder().decode(dataView);
+      value = parseInt(decodedString.trim());
+
+      if (isNaN(value)) {
+        console.warn('Valor de som inválido:', decodedString);
+        return;
+      }
+
+      console.log('Som recebido:', value);
+    } catch (error) {
+      console.error('Erro ao decodificar som:', error);
+      return;
+    }
+
+    const choroState = value >= settings.limiteSom ? true : sensorData.chorar;
+
+    pushSensorData({
+      som: value,
+      chorar: choroState
+    });
+  };
+
+  // Processar estado de choro (0/1) vindo do ESP32
+  const handleSoundStatusData = (event) => {
+    const dataView = event.target.value;
+
+    let value;
+    try {
+      const decodedString = new TextDecoder().decode(dataView);
+      value = parseInt(decodedString.trim());
+      if (isNaN(value) || (value !== 0 && value !== 1)) {
+        console.warn('Estado de som inválido:', decodedString);
+        return;
+      }
+      console.log('Estado choro recebido:', value);
+    } catch (error) {
+      console.error('Erro ao decodificar estado de som:', error);
+      return;
+    }
+
+    pushSensorData({
+      chorar: value === 1
+    });
+  };
+
   // Conectar ao ESP32
   const connectToESP32 = async (device) => {
     try {
@@ -162,9 +233,23 @@ const Dashboard = () => {
       // Obter serviço
       const service = await server.getPrimaryService(SERVICE_UUID);
       
-      // Obter característica do potenciômetro
-      const potChar = await service.getCharacteristic(POTENTIOMETER_CHARACTERISTIC_UUID);
-      setPotentiometerCharacteristic(potChar);
+      // Obter característica do botão (substitui potenciômetro)
+      const buttonChar = await service.getCharacteristic(BUTTON_CHARACTERISTIC_UUID);
+      setButtonCharacteristic(buttonChar);
+      
+      // Obter característica do som (valor bruto)
+      const soundChar = await service.getCharacteristic(SOUND_CHARACTERISTIC_UUID);
+      setSoundCharacteristic(soundChar);
+
+      // Obter característica do estado de choro (0/1) - opcional
+      let soundStatusChar = null;
+      try {
+        soundStatusChar = await service.getCharacteristic(SOUND_STATUS_CHARACTERISTIC_UUID);
+        setSoundStatusCharacteristic(soundStatusChar);
+      } catch (err) {
+        console.log('Característica de estado de choro não encontrada (seguindo sem ela):', err?.message);
+        setSoundStatusCharacteristic(null);
+      }
       
       // Obter característica de temperatura
       const tempChar = await service.getCharacteristic(TEMPERATURE_CHARACTERISTIC_UUID);
@@ -174,9 +259,17 @@ const Dashboard = () => {
       const humidityChar = await service.getCharacteristic(HUMIDITY_CHARACTERISTIC_UUID);
       setHumidityCharacteristic(humidityChar);
       
-      // Configurar notificações para o potenciômetro
-      await potChar.startNotifications();
-      potChar.addEventListener('characteristicvaluechanged', handlePotentiometerData);
+      // Configurar notificações
+      await buttonChar.startNotifications();
+      buttonChar.addEventListener('characteristicvaluechanged', handleButtonData);
+
+      await soundChar.startNotifications();
+      soundChar.addEventListener('characteristicvaluechanged', handleSoundData);
+
+      if (soundStatusChar) {
+        await soundStatusChar.startNotifications();
+        soundStatusChar.addEventListener('characteristicvaluechanged', handleSoundStatusData);
+      }
       
       // Configurar notificações para temperatura
       await tempChar.startNotifications();
@@ -202,7 +295,9 @@ const Dashboard = () => {
         setIsConnected(false);
         setIsMonitoring(false);
         setGattServer(null);
-        setPotentiometerCharacteristic(null);
+        setButtonCharacteristic(null);
+        setSoundCharacteristic(null);
+        setSoundStatusCharacteristic(null);
       });
 
       setIsBluetoothConnected(true);
@@ -272,90 +367,30 @@ const Dashboard = () => {
     }
   };
 
-  // Processar dados do potenciômetro
-  const handlePotentiometerData = (event) => {
+  // Processar dados do botão (sentado / não sentado)
+  const handleButtonData = (event) => {
     const dataView = event.target.value;
     
-    // ESP32 envia dados como string, precisamos decodificar corretamente
     let value;
     try {
       const decodedString = new TextDecoder().decode(dataView);
       value = parseInt(decodedString.trim());
       
-      // Verificar se o valor é válido (0-4095 para ESP32)
-      if (isNaN(value) || value < 0 || value > 4095) {
-        console.warn('Valor inválido recebido:', decodedString, 'Valor numérico:', value);
+      if (isNaN(value) || (value !== 0 && value !== 1)) {
+        console.warn('Valor de botão inválido:', decodedString);
         return;
       }
       
-      console.log('Dados recebidos do ESP32:', {
-        raw: Array.from(dataView),
-        decoded: decodedString,
-        parsed: value
-      });
+      console.log('Botão recebido:', value);
       
     } catch (error) {
-      console.error('Erro ao decodificar dados:', error);
+      console.error('Erro ao decodificar dados do botão:', error);
       return;
     }
     
-    const newData = {
-      potenciometro: value,
-      timestamp: Date.now()
-    };
-    
-    // Verificar mudança do estado do LED
-    const currentLedState = value > settings.limitePotenciometro;
-    console.log('Estado do LED:', {
-      valor: value,
-      limite: settings.limitePotenciometro,
-      currentLedState,
-      previousLedState,
-      mudou: currentLedState && !previousLedState
+    pushSensorData({
+      botao: value
     });
-    
-    if (currentLedState && !previousLedState) {
-      // LED acabou de ligar
-      console.log('🚨 LED LIGOU! Enviando notificação...');
-      setLedPopupMessage(`🚨 LED LIGADO! Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`);
-      setShowLedPopup(true);
-      
-      // Enviar notificação do sistema
-      sendSystemNotification('🚨 LED LIGADO!', {
-        body: `Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`,
-        tag: 'led-alert',
-        requireInteraction: true
-      });
-      
-      // Auto-fechar o pop-up após 5 segundos
-      setTimeout(() => {
-        setShowLedPopup(false);
-      }, 5000);
-    } else if (currentLedState && settings.notificacaoSempre) {
-      // LED continua ligado mas notificar sempre se ativado
-      console.log('🚨 LED CONTINUA LIGADO! Enviando notificação...');
-      sendSystemNotification('🚨 LED LIGADO!', {
-        body: `Potenciômetro: ${value} (Limite: ${settings.limitePotenciometro})`,
-        tag: 'led-alert-continuous',
-        requireInteraction: true
-      });
-    } else if (currentLedState) {
-      console.log('LED continua ligado, não enviando notificação');
-    } else {
-      console.log('LED desligado');
-    }
-    setPreviousLedState(currentLedState);
-    
-    setSensorData(newData);
-    
-    // Adicionar ao histórico
-    setHistory(prev => [
-      { ...newData, id: Date.now() },
-      ...prev.slice(0, 99)
-    ]);
-    
-    // Verificar alertas
-    checkAlerts(newData);
   };
 
   // Desconectar do ESP32
@@ -368,7 +403,9 @@ const Dashboard = () => {
     setIsMonitoring(false);
     setBluetoothDevice(null);
     setGattServer(null);
-    setPotentiometerCharacteristic(null);
+    setButtonCharacteristic(null);
+    setSoundCharacteristic(null);
+    setSoundStatusCharacteristic(null);
     setTemperatureCharacteristic(null);
     setHumidityCharacteristic(null);
   };
@@ -390,17 +427,16 @@ const Dashboard = () => {
 
   const checkAlerts = (data) => {
     const newAlerts = [];
-    
-    // Alerta de potenciômetro alto desativado
-    // if (data.potenciometro > settings.limitePotenciometro) {
-    //   newAlerts.push({
-    //     id: Date.now(),
-    //     type: 'potenciometro',
-    //     message: `Potenciômetro alto: ${data.potenciometro}`,
-    //     timestamp: Date.now(),
-    //     severity: 'high'
-    //   });
-    // }
+
+    if (data.chorar || data.som >= settings.limiteSom) {
+      newAlerts.push({
+        id: Date.now(),
+        type: 'som',
+        message: data.chorar ? 'Bebé a chorar detectado!' : 'Som elevado detectado',
+        timestamp: Date.now(),
+        severity: 'high'
+      });
+    }
     
     if (newAlerts.length > 0) {
       setAlerts(prev => [...newAlerts, ...prev.slice(0, 4)]);
@@ -731,15 +767,15 @@ const Dashboard = () => {
               className="btn btn-warning"
               onClick={() => {
                 console.log('Testando notificação de LED...');
-                sendSystemNotification('🚨 LED LIGADO! (TESTE)', {
-                  body: `Potenciômetro: ${sensorData.potenciometro} (Limite: ${settings.limitePotenciometro})`,
-                  tag: 'led-alert-test',
+                sendSystemNotification('🧪 Teste: Som Alto', {
+                  body: `Som: ${sensorData.som} (Limiar: ${settings.limiteSom})`,
+                  tag: 'sound-alert-test',
                   requireInteraction: true
                 });
               }}
-              title="Testar notificação de LED"
+              title="Testar notificação de som"
             >
-              🚨 Teste LED
+              🔊 Teste Som
             </button>
             
             <button 
@@ -759,34 +795,6 @@ const Dashboard = () => {
         </div>
 
         <AlertBanner alerts={alerts} onDismiss={dismissAlert} />
-
-      {/* Pop-up do LED */}
-      {showLedPopup && (
-        <div className="led-popup-overlay">
-          <div className="led-popup">
-            <div className="led-popup-header">
-              <h3>🚨 Alerta LED</h3>
-              <button 
-                className="led-popup-close"
-                onClick={() => setShowLedPopup(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="led-popup-content">
-              <p>{ledPopupMessage}</p>
-              <div className="led-popup-actions">
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => setShowLedPopup(false)}
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
         {/* Lista de Dispositivos ESP32 */}
         {showDeviceList && (
@@ -934,10 +942,12 @@ const Dashboard = () => {
                 <h4>⚙️ Configuração ESP32</h4>
                 <ul>
                   <li><strong>Protocolo:</strong> Bluetooth Low Energy (BLE)</li>
-                  <li><strong>Nome:</strong> ESP32_BLE_Pot_LED</li>
+                  <li><strong>Nome:</strong> ESP32_BLE_Botao_Som_LED</li>
                   <li><strong>Serviço:</strong> 4fafc201-1fb5-459e-8fcc-c5c9c331914b</li>
-                  <li><strong>Potenciômetro:</strong> beb5483e-36e1-4688-b7f5-ea07361b26a8</li>
-                  <li><strong>LED:</strong> Controlado automaticamente (pino 2)</li>
+                  <li><strong>Botão:</strong> beb5483e-36e1-4688-b7f5-ea07361b26a8</li>
+                  <li><strong>Som (bruto):</strong> f0ffee01-1234-5678-9abc-def012345678</li>
+                  <li><strong>Choro (0/1):</strong> f0ffee02-1234-5678-9abc-def012345678</li>
+                  <li><strong>DHT11:</strong> Temp d0ffee01..., Hum e0ffee01...</li>
                 </ul>
               </div>
             </div>
@@ -945,18 +955,42 @@ const Dashboard = () => {
         )}
 
         <div className="sensor-grid">
-                <SensorCard
-                  title="Potenciômetro"
-                  icon={<Activity size={24} />}
-                  value={sensorData.potenciometro}
-                  unit=""
-                  status={sensorData.potenciometro > settings.limitePotenciometro ? 'alert' : 'normal'}
-                  timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
-                  limite={settings.limitePotenciometro} // 2000 - Limite do LED ESP32
-                  maxValue={4095}
-                  color="#3b82f6"
-                />
-          
+          <SensorCard
+            title="Posição (Botão)"
+            icon={<Activity size={24} />}
+            value={sensorData.botao === 1 ? 'Sentado' : 'Não sentado'}
+            unit=""
+            status={sensorData.botao === 1 ? 'normal' : 'warning'}
+            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
+            limite="1 = sentado"
+            maxValue="1"
+            color={sensorData.botao === 1 ? "#10b981" : "#f59e0b"}
+          />
+
+          <SensorCard
+            title="Som (bruto)"
+            icon={<AlertTriangle size={24} />}
+            value={sensorData.som}
+            unit=""
+            status={sensorData.som >= settings.limiteSom ? 'alert' : 'normal'}
+            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
+            limite={settings.limiteSom}
+            maxValue="4095"
+            color={sensorData.som >= settings.limiteSom ? "#ef4444" : "#3b82f6"}
+          />
+
+          <SensorCard
+            title="Estado: Choro"
+            icon={<AlertTriangle size={24} />}
+            value={sensorData.chorar ? 'A chorar' : 'Calmo'}
+            unit=""
+            status={sensorData.chorar ? 'alert' : 'normal'}
+            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
+            limite={settings.limiteSom}
+            maxValue="4095"
+            color={sensorData.chorar ? "#ef4444" : "#10b981"}
+          />
+
           <SensorCard
             title="Temperatura"
             icon={<Thermometer size={24} />}
@@ -979,18 +1013,6 @@ const Dashboard = () => {
             limite="80%"
             maxValue="100%"
             color={sensorData.humidade > 80 ? "#ef4444" : sensorData.humidade > 60 ? "#f59e0b" : "#3b82f6"}
-          />
-          
-          <SensorCard
-            title="LED Status"
-            icon={<Lightbulb size={24} />}
-            value={sensorData.potenciometro > settings.limitePotenciometro ? 'Ligado' : 'Desligado'}
-            unit=""
-            status={sensorData.potenciometro > settings.limitePotenciometro ? 'alert' : 'normal'}
-            timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
-            limite="2000 (Automático)" // Limite do LED ESP32
-            maxValue="N/A"
-            color={sensorData.potenciometro > settings.limitePotenciometro ? "#10b981" : "#6b7280"}
           />
         </div>
 

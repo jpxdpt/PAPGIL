@@ -36,11 +36,20 @@ const Chart = ({ data = [] }) => {
     }),
     datasets: [
       {
-        label: 'Potenciômetro',
-        data: chartData.map(item => item.potenciometro),
+        label: 'Botão (0/1)',
+        data: chartData.map(item => item.botao ?? 0),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        tension: 0.2,
+        fill: false,
+        yAxisID: 'y3',
+      },
+      {
+        label: 'Som (bruto)',
+        data: chartData.map(item => item.som ?? 0),
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
+        tension: 0.3,
         fill: false,
         yAxisID: 'y',
       },
@@ -56,8 +65,8 @@ const Chart = ({ data = [] }) => {
       {
         label: 'Humidade (%)',
         data: chartData.map(item => item.humidade || 0),
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
         tension: 0.4,
         fill: false,
         yAxisID: 'y2',
@@ -114,6 +123,12 @@ const Chart = ({ data = [] }) => {
             display: false, // Ocultar eixo Y2 para humidade
             beginAtZero: true,
             max: 100, // Humidade máxima
+          },
+          y3: {
+            type: 'linear',
+            display: false,
+            beginAtZero: true,
+            max: 1.2 // Botão 0/1
           },
       x: {
         grid: {
