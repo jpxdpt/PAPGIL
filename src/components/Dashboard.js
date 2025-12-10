@@ -465,15 +465,16 @@ const Dashboard = () => {
 
   const checkAlerts = (data) => {
     const newAlerts = [];
+    // Som/choro só é considerado alerta se bebé estiver sentado (botão = 1)
     const currentStates = {
-      som: data.chorar || data.som >= settings.limiteSom,
+      som: (data.chorar || data.som >= settings.limiteSom) && data.botao === 1,
       temperatura: data.temperatura > 30,
       humidade: data.humidade > 80,
-      chorar: data.chorar
+      chorar: data.chorar && data.botao === 1
     };
 
-    // Verificar som/choro
-    if (currentStates.som) {
+    // Verificar som/choro - apenas se bebé estiver sentado (botão = 1)
+    if (currentStates.som && data.botao === 1) {
       const shouldAlert = !lastAlertStatesRef.current.som || settings.notificacaoSempre;
       if (shouldAlert) {
         newAlerts.push({
@@ -489,7 +490,7 @@ const Dashboard = () => {
           sendSystemNotification(
             data.chorar ? '🚨 Bebé a chorar!' : '🔊 Som elevado detectado',
             {
-              body: `Valor do som: ${data.som} (Limiar: ${settings.limiteSom})`,
+              body: `Valor do som: ${data.som} (Limiar: ${settings.limiteSom}) - Bebé sentado`,
               tag: 'sound-alert',
               requireInteraction: true,
               icon: '/favicon.ico'
