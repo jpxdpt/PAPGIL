@@ -50,6 +50,12 @@ const Dashboard = () => {
   });
   const audioRef = useRef(null);
   const lastUpdateRef = useRef(0); // evitar updates excessivos/visíveis
+  const lastAlertStatesRef = useRef({
+    som: false,
+    temperatura: false,
+    humidade: false,
+    chorar: false
+  }); // rastrear últimos estados de alerta para evitar notificações repetidas
 
   // Registrar Service Worker para notificações no telemóvel
   useEffect(() => {
@@ -425,26 +431,136 @@ const Dashboard = () => {
     setIsMonitoring(false);
   };
 
+  // Função para tocar som de alerta (usa Web Audio API se disponível, senão tenta arquivo)
+  const playAlertSound = () => {
+    if (!settings.alertasAtivos) return;
+    
+    // Tentar usar Web Audio API para gerar beep
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // Frequência do beep
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (error) {
+      console.log('Erro ao gerar beep, tentando arquivo de áudio:', error);
+      // Fallback: tentar arquivo de áudio se existir
+      if (audioRef.current) {
+        audioRef.current.play().catch(err => {
+          console.log('Erro ao tocar arquivo de áudio:', err);
+        });
+      }
+    }
+  };
+
   const checkAlerts = (data) => {
     const newAlerts = [];
+    const currentStates = {
+      som: data.chorar || data.som >= settings.limiteSom,
+      temperatura: data.temperatura > 30,
+      humidade: data.humidade > 80,
+      chorar: data.chorar
+    };
 
-    if (data.chorar || data.som >= settings.limiteSom) {
-      newAlerts.push({
-        id: Date.now(),
-        type: 'som',
-        message: data.chorar ? 'Bebé a chorar detectado!' : 'Som elevado detectado',
-        timestamp: Date.now(),
-        severity: 'high'
-      });
+    // Verificar som/choro
+    if (currentStates.som) {
+      const shouldAlert = !lastAlertStatesRef.current.som || settings.notificacaoSempre;
+      if (shouldAlert) {
+        newAlerts.push({
+          id: Date.now(),
+          type: 'som',
+          message: data.chorar ? '🚨 Bebé a chorar detectado!' : `🔊 Som elevado detectado (${data.som})`,
+          timestamp: Date.now(),
+          severity: 'high'
+        });
+        
+        // Notificação do sistema
+        if (settings.alertasAtivos) {
+          sendSystemNotification(
+            data.chorar ? '🚨 Bebé a chorar!' : '🔊 Som elevado detectado',
+            {
+              body: `Valor do som: ${data.som} (Limiar: ${settings.limiteSom})`,
+              tag: 'sound-alert',
+              requireInteraction: true,
+              icon: '/favicon.ico'
+            }
+          );
+        }
+      }
     }
+
+    // Verificar temperatura
+    if (currentStates.temperatura) {
+      const shouldAlert = !lastAlertStatesRef.current.temperatura || settings.notificacaoSempre;
+      if (shouldAlert) {
+        newAlerts.push({
+          id: Date.now(),
+          type: 'temperatura',
+          message: `🌡️ Temperatura elevada: ${data.temperatura.toFixed(1)}°C`,
+          timestamp: Date.now(),
+          severity: 'high'
+        });
+        
+        // Notificação do sistema
+        if (settings.alertasAtivos) {
+          sendSystemNotification(
+            '🌡️ Temperatura elevada!',
+            {
+              body: `Temperatura: ${data.temperatura.toFixed(1)}°C (Limite: 30°C)`,
+              tag: 'temperature-alert',
+              requireInteraction: true,
+              icon: '/favicon.ico'
+            }
+          );
+        }
+      }
+    }
+
+    // Verificar humidade
+    if (currentStates.humidade) {
+      const shouldAlert = !lastAlertStatesRef.current.humidade || settings.notificacaoSempre;
+      if (shouldAlert) {
+        newAlerts.push({
+          id: Date.now(),
+          type: 'humidade',
+          message: `💧 Humidade elevada: ${data.humidade.toFixed(1)}%`,
+          timestamp: Date.now(),
+          severity: 'high'
+        });
+        
+        // Notificação do sistema
+        if (settings.alertasAtivos) {
+          sendSystemNotification(
+            '💧 Humidade elevada!',
+            {
+              body: `Humidade: ${data.humidade.toFixed(1)}% (Limite: 80%)`,
+              tag: 'humidity-alert',
+              requireInteraction: true,
+              icon: '/favicon.ico'
+            }
+          );
+        }
+      }
+    }
+    
+    // Atualizar estados de alerta
+    lastAlertStatesRef.current = currentStates;
     
     if (newAlerts.length > 0) {
       setAlerts(prev => [...newAlerts, ...prev.slice(0, 4)]);
       
       // Tocar som de alerta
-      if (settings.alertasAtivos && audioRef.current) {
-        audioRef.current.play().catch(console.log);
-      }
+      playAlertSound();
     }
   };
 
