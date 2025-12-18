@@ -9,7 +9,7 @@
 #define DHTPIN 4
 #define DHTTYPE DHT11
 const int PINO_SENSOR = 32;           // Sensor de som no IO32 (ADC1_CH4)
-const int SOUND_THRESHOLD = 200;     // Limite de som para considerar "a chorar"
+const int SOUND_THRESHOLD = 2000;     // Limite de som para considerar "a chorar"
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -168,7 +168,7 @@ void loop() {
   Serial.print("Botão: ");
   Serial.print(valorBotao);
 
-  if (valorBotao == 1) {
+  if (valorBotao == 1 && aChorar) {
     digitalWrite(pinoLED, HIGH);
   } else {
     digitalWrite(pinoLED, LOW);

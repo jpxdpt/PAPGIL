@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Activity, 
-  AlertTriangle, 
+import {
+  Activity,
+  AlertTriangle,
   Play,
   Pause,
   RotateCcw,
@@ -26,7 +26,7 @@ const Dashboard = () => {
     humidade: 0,
     timestamp: Date.now()
   });
-  
+
   const [isConnected, setIsConnected] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isBluetoothConnected, setIsBluetoothConnected] = useState(false);
@@ -44,7 +44,7 @@ const Dashboard = () => {
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [settings, setSettings] = useState({
-    limiteSom: 200, // Limiar para considerar "a chorar"
+    limiteSom: 2000, // Limiar para considerar "a chorar"
     alertasAtivos: true,
     notificacaoSempre: false // Notificar sempre que passar o limite
   });
@@ -96,7 +96,7 @@ const Dashboard = () => {
 
       // Procurar dispositivos ESP32 - tentar diferentes abordagens
       let device;
-      
+
       try {
         // Primeiro, tentar com filtros específicos
         device = await navigator.bluetooth.requestDevice({
@@ -110,7 +110,7 @@ const Dashboard = () => {
         console.log('Dispositivo encontrado com filtros específicos:', device);
       } catch (filterError) {
         console.log('Filtros específicos falharam, tentando aceitar todos os dispositivos...');
-        
+
         // Se falhar, tentar aceitar todos os dispositivos
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
@@ -123,7 +123,7 @@ const Dashboard = () => {
       console.log('Dispositivo encontrado:', device);
       console.log('Nome do dispositivo:', device.name);
       console.log('ID do dispositivo:', device.id);
-      
+
       const deviceInfo = {
         id: device.id,
         name: device.name || 'ESP32 (Desconhecido)',
@@ -137,7 +137,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Erro ao procurar dispositivos:', error);
       setIsScanning(false);
-      
+
       if (error.name === 'NotFoundError') {
         alert('Nenhum dispositivo BLE encontrado. Verifique se o ESP32 está ligado e em modo BLE.');
         setShowDeviceList(false);
@@ -192,7 +192,7 @@ const Dashboard = () => {
       return;
     }
 
-    const choroState = value >= settings.limiteSom ? true : sensorData.chorar;
+    const choroState = value >= settings.limiteSom;
 
     pushSensorData({
       som: value,
@@ -232,17 +232,17 @@ const Dashboard = () => {
       }
 
       console.log('Conectando ao ESP32:', device.name);
-      
+
       const server = await device.device.gatt.connect();
       setGattServer(server);
-      
+
       // Obter serviço
       const service = await server.getPrimaryService(SERVICE_UUID);
-      
+
       // Obter característica do botão (substitui potenciômetro)
       const buttonChar = await service.getCharacteristic(BUTTON_CHARACTERISTIC_UUID);
       setButtonCharacteristic(buttonChar);
-      
+
       // Obter característica do som (valor bruto)
       const soundChar = await service.getCharacteristic(SOUND_CHARACTERISTIC_UUID);
       setSoundCharacteristic(soundChar);
@@ -256,15 +256,15 @@ const Dashboard = () => {
         console.log('Característica de estado de choro não encontrada (seguindo sem ela):', err?.message);
         setSoundStatusCharacteristic(null);
       }
-      
+
       // Obter característica de temperatura
       const tempChar = await service.getCharacteristic(TEMPERATURE_CHARACTERISTIC_UUID);
       setTemperatureCharacteristic(tempChar);
-      
+
       // Obter característica de humidade
       const humidityChar = await service.getCharacteristic(HUMIDITY_CHARACTERISTIC_UUID);
       setHumidityCharacteristic(humidityChar);
-      
+
       // Configurar notificações
       await buttonChar.startNotifications();
       buttonChar.addEventListener('characteristicvaluechanged', handleButtonData);
@@ -276,15 +276,15 @@ const Dashboard = () => {
         await soundStatusChar.startNotifications();
         soundStatusChar.addEventListener('characteristicvaluechanged', handleSoundStatusData);
       }
-      
+
       // Configurar notificações para temperatura
       await tempChar.startNotifications();
       tempChar.addEventListener('characteristicvaluechanged', handleTemperatureData);
-      
+
       // Configurar notificações para humidade
       await humidityChar.startNotifications();
       humidityChar.addEventListener('characteristicvaluechanged', handleHumidityData);
-      
+
       // Obter característica de notificação (se disponível)
       try {
         const notifChar = await service.getCharacteristic(NOTIFICATION_CHARACTERISTIC_UUID);
@@ -293,7 +293,7 @@ const Dashboard = () => {
       } catch (error) {
         console.log('Característica de notificação não disponível:', error.message);
       }
-      
+
       // Adicionar listener para desconexão
       device.device.addEventListener('gattserverdisconnected', () => {
         console.log('ESP32 desconectado');
@@ -310,9 +310,9 @@ const Dashboard = () => {
       setIsConnected(true);
       setBluetoothDevice(device.device);
       setShowDeviceList(false);
-      
+
       alert(`Conectado com sucesso ao ${device.name}!`);
-      
+
     } catch (error) {
       console.error('Erro ao conectar:', error);
       alert('Erro ao conectar ao ESP32: ' + error.message);
@@ -322,25 +322,25 @@ const Dashboard = () => {
   // Processar dados de temperatura
   const handleTemperatureData = (event) => {
     const dataView = event.target.value;
-    
+
     let value;
     try {
       const decodedString = new TextDecoder().decode(dataView);
       value = parseFloat(decodedString.trim());
-      
+
       if (isNaN(value)) {
         console.warn('Valor de temperatura inválido:', decodedString);
         return;
       }
-      
+
       console.log('Temperatura recebida:', value);
-      
+
       setSensorData(prev => ({
         ...prev,
         temperatura: value,
         timestamp: Date.now()
       }));
-      
+
     } catch (error) {
       console.error('Erro ao decodificar temperatura:', error);
     }
@@ -349,25 +349,25 @@ const Dashboard = () => {
   // Processar dados de humidade
   const handleHumidityData = (event) => {
     const dataView = event.target.value;
-    
+
     let value;
     try {
       const decodedString = new TextDecoder().decode(dataView);
       value = parseFloat(decodedString.trim());
-      
+
       if (isNaN(value)) {
         console.warn('Valor de humidade inválido:', decodedString);
         return;
       }
-      
+
       console.log('Humidade recebida:', value);
-      
+
       setSensorData(prev => ({
         ...prev,
         humidade: value,
         timestamp: Date.now()
       }));
-      
+
     } catch (error) {
       console.error('Erro ao decodificar humidade:', error);
     }
@@ -376,24 +376,24 @@ const Dashboard = () => {
   // Processar dados do botão (sentado / não sentado)
   const handleButtonData = (event) => {
     const dataView = event.target.value;
-    
+
     let value;
     try {
       const decodedString = new TextDecoder().decode(dataView);
       value = parseInt(decodedString.trim());
-      
+
       if (isNaN(value) || (value !== 0 && value !== 1)) {
         console.warn('Valor de botão inválido:', decodedString);
         return;
       }
-      
+
       console.log('Botão recebido:', value);
-      
+
     } catch (error) {
       console.error('Erro ao decodificar dados do botão:', error);
       return;
     }
-    
+
     pushSensorData({
       botao: value
     });
@@ -434,22 +434,22 @@ const Dashboard = () => {
   // Função para tocar som de alerta (usa Web Audio API se disponível, senão tenta arquivo)
   const playAlertSound = () => {
     if (!settings.alertasAtivos) return;
-    
+
     // Tentar usar Web Audio API para gerar beep
     try {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-      
+
       oscillator.frequency.value = 800; // Frequência do beep
       oscillator.type = 'sine';
-      
+
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
+
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.3);
     } catch (error) {
@@ -484,7 +484,7 @@ const Dashboard = () => {
           timestamp: Date.now(),
           severity: 'high'
         });
-        
+
         // Notificação do sistema
         if (settings.alertasAtivos) {
           sendSystemNotification(
@@ -511,7 +511,7 @@ const Dashboard = () => {
           timestamp: Date.now(),
           severity: 'high'
         });
-        
+
         // Notificação do sistema
         if (settings.alertasAtivos) {
           sendSystemNotification(
@@ -538,7 +538,7 @@ const Dashboard = () => {
           timestamp: Date.now(),
           severity: 'high'
         });
-        
+
         // Notificação do sistema
         if (settings.alertasAtivos) {
           sendSystemNotification(
@@ -553,13 +553,13 @@ const Dashboard = () => {
         }
       }
     }
-    
+
     // Atualizar estados de alerta
     lastAlertStatesRef.current = currentStates;
-    
+
     if (newAlerts.length > 0) {
       setAlerts(prev => [...newAlerts, ...prev.slice(0, 4)]);
-      
+
       // Tocar som de alerta
       playAlertSound();
     }
@@ -596,13 +596,13 @@ const Dashboard = () => {
       // Converter para ArrayBuffer
       const encoder = new TextEncoder();
       const data = encoder.encode(JSON.stringify(notificationData));
-      
+
       // Enviar para o ESP32
       await notificationCharacteristic.writeValue(data);
-      
+
       console.log('Notificação enviada:', notificationData);
       return true;
-      
+
     } catch (error) {
       console.error('Erro ao enviar notificação:', error);
       return false;
@@ -630,7 +630,7 @@ const Dashboard = () => {
   const sendSystemNotification = async (title, options = {}) => {
     try {
       console.log('Tentando enviar notificação do sistema:', title);
-      
+
       if (!('Notification' in window)) {
         console.log('Este navegador não suporta notificações do sistema');
         alert('Este navegador não suporta notificações do sistema');
@@ -641,7 +641,7 @@ const Dashboard = () => {
 
       if (Notification.permission === 'granted') {
         console.log('Criando notificação...');
-        
+
         // Tentar usar Service Worker primeiro (para telemóvel)
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           try {
@@ -662,7 +662,7 @@ const Dashboard = () => {
             console.log('Erro ao usar Service Worker:', swError);
           }
         }
-        
+
         // Fallback: tentar notificação direta (desktop)
         if (typeof window !== 'undefined' && window.Notification) {
           try {
@@ -671,18 +671,18 @@ const Dashboard = () => {
               badge: '/favicon.ico',
               ...options
             });
-            
+
             notification.onclick = () => {
               console.log('Notificação clicada');
               window.focus();
               notification.close();
             };
-            
+
             console.log('Notificação criada com sucesso');
             return true;
           } catch (notificationError) {
             console.log('Erro ao criar notificação direta:', notificationError.message);
-            
+
             // Fallback final: alert visual
             showVisualAlert(title, options);
             return true;
@@ -700,11 +700,11 @@ const Dashboard = () => {
       } else {
         alert('Permissão de notificação foi negada anteriormente');
       }
-      
+
       return false;
     } catch (error) {
       console.error('Erro ao enviar notificação do sistema:', error);
-      
+
       // Fallback: alert visual
       showVisualAlert(title, options);
       return false;
@@ -717,7 +717,7 @@ const Dashboard = () => {
     if (options.body) {
       console.log(`📝 Detalhes: ${options.body}`);
     }
-    
+
     // Mostrar alert visual no dashboard
     const alertDiv = document.createElement('div');
     alertDiv.style.cssText = `
@@ -738,7 +738,7 @@ const Dashboard = () => {
       <div style="font-size: 0.9rem;">${options.body || ''}</div>
     `;
     document.body.appendChild(alertDiv);
-    
+
     // Remover após 5 segundos
     setTimeout(() => {
       if (alertDiv.parentNode) {
@@ -773,10 +773,10 @@ const Dashboard = () => {
             <div className={`status-indicator ${isBluetoothConnected ? 'connected' : 'disconnected'}`}></div>
             <span>{isBluetoothConnected ? 'ESP32 Conectado' : 'ESP32 Desconectado'}</span>
           </div>
-          
+
           <div className="controls">
             {!isBluetoothConnected ? (
-              <button 
+              <button
                 className="btn btn-primary"
                 onClick={scanForDevices}
                 disabled={isScanning}
@@ -786,7 +786,7 @@ const Dashboard = () => {
               </button>
             ) : (
               <>
-                <button 
+                <button
                   className="btn btn-primary"
                   onClick={isMonitoring ? stopMonitoring : startMonitoring}
                   disabled={!isBluetoothConnected}
@@ -794,8 +794,8 @@ const Dashboard = () => {
                   {isMonitoring ? <Pause size={16} /> : <Play size={16} />}
                   {isMonitoring ? 'Parar' : 'Iniciar'} Monitorização
                 </button>
-                
-                <button 
+
+                <button
                   className="btn btn-secondary"
                   disabled={true}
                   title="LED controlado automaticamente pelo ESP32"
@@ -803,18 +803,18 @@ const Dashboard = () => {
                   <Lightbulb size={16} />
                   LED (Automático)
                 </button>
-                
-                <button 
+
+                <button
                   className="btn btn-secondary"
                   onClick={disconnectESP32}
                 >
                   <BluetoothConnected size={16} />
                   Desconectar
                 </button>
-                
+
                 {/* Botões de Notificação */}
                 <div className="notification-controls" style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button 
+                  <button
                     className="btn btn-info"
                     onClick={() => sendInfoNotification('Notificação de informação do dashboard')}
                     disabled={!notificationCharacteristic}
@@ -822,8 +822,8 @@ const Dashboard = () => {
                   >
                     📢 Info
                   </button>
-                  
-                  <button 
+
+                  <button
                     className="btn btn-warning"
                     onClick={() => sendWarningNotification('⚠️ Alerta: Verificar sistema')}
                     disabled={!notificationCharacteristic}
@@ -831,8 +831,8 @@ const Dashboard = () => {
                   >
                     ⚠️ Alerta
                   </button>
-                  
-                  <button 
+
+                  <button
                     className="btn btn-success"
                     onClick={() => sendSuccessNotification('✅ Sistema funcionando perfeitamente')}
                     disabled={!notificationCharacteristic}
@@ -840,8 +840,8 @@ const Dashboard = () => {
                   >
                     ✅ Sucesso
                   </button>
-                  
-                  <button 
+
+                  <button
                     className="btn btn-danger"
                     onClick={() => sendAlertNotification('🚨 ALERTA CRÍTICO: Ação necessária!')}
                     disabled={!notificationCharacteristic}
@@ -852,24 +852,24 @@ const Dashboard = () => {
                 </div>
               </>
             )}
-            
-            <button 
+
+            <button
               className="btn btn-secondary"
               onClick={clearHistory}
             >
               <RotateCcw size={16} />
               Limpar Histórico
             </button>
-            
-            <button 
+
+            <button
               className="btn btn-secondary"
               onClick={requestNotificationPermission}
               title="Permitir notificações do sistema"
             >
               🔔 Notificações
             </button>
-            
-            <button 
+
+            <button
               className="btn btn-info"
               onClick={() => sendSystemNotification('🧪 Teste de Notificação', {
                 body: 'Esta é uma notificação de teste do sistema!',
@@ -879,8 +879,8 @@ const Dashboard = () => {
             >
               🧪 Testar
             </button>
-            
-            <button 
+
+            <button
               className="btn btn-warning"
               onClick={() => {
                 console.log('Testando notificação de LED...');
@@ -894,8 +894,8 @@ const Dashboard = () => {
             >
               🔊 Teste Som
             </button>
-            
-            <button 
+
+            <button
               className={`btn ${settings.notificacaoSempre ? 'btn-success' : 'btn-secondary'}`}
               onClick={() => {
                 setSettings(prev => ({
@@ -919,14 +919,14 @@ const Dashboard = () => {
             <div className="device-modal-content">
               <div className="device-modal-header">
                 <h3>Selecionar Dispositivo ESP32</h3>
-                <button 
+                <button
                   className="btn btn-secondary"
                   onClick={closeDeviceList}
                 >
                   ✕
                 </button>
               </div>
-              
+
               <div style={{ padding: '15px 25px', background: '#f0f9ff', borderBottom: '1px solid #0ea5e9' }}>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: '#0c4a6e' }}>
                   🔍 <strong>Procurando ESP32:</strong> Certifique-se de que o ESP32 está ligado e em modo BLE
@@ -935,7 +935,7 @@ const Dashboard = () => {
                   💡 <strong>Dica:</strong> O ESP32 deve aparecer como "ESP32_BLE_Pot_LED" ou "ESP32"
                 </p>
               </div>
-              
+
               <div className="device-list">
                 {isScanning ? (
                   <div className="scanning">
@@ -964,7 +964,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   availableDevices.map((device) => (
-                    <div 
+                    <div
                       key={device.id}
                       className="device-item"
                       onClick={() => connectToESP32(device)}
@@ -983,9 +983,9 @@ const Dashboard = () => {
                   ))
                 )}
               </div>
-              
+
               <div className="device-modal-footer">
-                <button 
+                <button
                   className="btn btn-secondary"
                   onClick={closeDeviceList}
                 >
@@ -1006,7 +1006,7 @@ const Dashboard = () => {
               </span>
             </div>
           </div>
-          
+
           <div className="connection-info">
             <div className="info-card">
               <h4>📱 Verificar ESP32</h4>
@@ -1018,7 +1018,7 @@ const Dashboard = () => {
                 <li><strong>Próximo</strong> ao computador (máximo 1 metro)</li>
               </ol>
             </div>
-            
+
             <div className="info-card">
               <h4>💻 Verificar Computador</h4>
               <ol>
@@ -1043,7 +1043,7 @@ const Dashboard = () => {
                 </span>
               </div>
             </div>
-            
+
             <div className="connection-info">
               <div className="info-card">
                 <h4>📡 Como Conectar</h4>
@@ -1054,7 +1054,7 @@ const Dashboard = () => {
                   <li>Clique em "Conectar" para estabelecer a ligação BLE</li>
                 </ol>
               </div>
-              
+
               <div className="info-card">
                 <h4>⚙️ Configuração ESP32</h4>
                 <ul>
@@ -1089,11 +1089,11 @@ const Dashboard = () => {
             icon={<AlertTriangle size={24} />}
             value={sensorData.som}
             unit=""
-            status={sensorData.som >= settings.limiteSom ? 'alert' : 'normal'}
+            status={(sensorData.som >= settings.limiteSom && sensorData.botao === 1) ? 'alert' : 'normal'}
             timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
             limite={settings.limiteSom}
             maxValue="4095"
-            color={sensorData.som >= settings.limiteSom ? "#ef4444" : "#3b82f6"}
+            color={(sensorData.som >= settings.limiteSom && sensorData.botao === 1) ? "#ef4444" : "#3b82f6"}
           />
 
           <SensorCard
@@ -1101,11 +1101,11 @@ const Dashboard = () => {
             icon={<AlertTriangle size={24} />}
             value={sensorData.chorar ? 'A chorar' : 'Calmo'}
             unit=""
-            status={sensorData.chorar ? 'alert' : 'normal'}
+            status={(sensorData.chorar && sensorData.botao === 1) ? 'alert' : 'normal'}
             timestamp={new Date(sensorData.timestamp).toLocaleTimeString()}
             limite={settings.limiteSom}
             maxValue="4095"
-            color={sensorData.chorar ? "#ef4444" : "#10b981"}
+            color={(sensorData.chorar && sensorData.botao === 1) ? "#ef4444" : "#10b981"}
           />
 
           <SensorCard
@@ -1134,16 +1134,16 @@ const Dashboard = () => {
         </div>
 
         <div className="charts-section">
-          <Chart 
-            data={history} 
+          <Chart
+            data={history}
             title="Histórico dos Sensores"
             height={300}
           />
         </div>
 
         <div className="history-section">
-          <HistoryList 
-            history={history} 
+          <HistoryList
+            history={history}
             onClear={clearHistory}
           />
         </div>
