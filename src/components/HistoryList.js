@@ -10,8 +10,8 @@ const HistoryList = ({ history = [] }) => {
     });
   };
 
-  const getStatusIcon = (som, chorar) => {
-    if (chorar || som >= 200) {
+  const getStatusIcon = (som, chorar, botao) => {
+    if ((chorar || som >= 2000) && botao === 1) {
       return <span style={{ color: '#ef4444' }}>⚠️</span>;
     }
     return <span style={{ color: '#10b981' }}>✅</span>;
@@ -19,8 +19,8 @@ const HistoryList = ({ history = [] }) => {
 
   if (!history || history.length === 0) {
     return (
-      <div style={{ 
-        textAlign: 'center', 
+      <div style={{
+        textAlign: 'center',
         padding: '40px 20px',
         color: '#6b7280',
         fontSize: '1.1rem'
@@ -42,7 +42,7 @@ const HistoryList = ({ history = [] }) => {
             <Clock size={14} style={{ marginRight: '8px' }} />
             {formatTime(item.timestamp)}
           </div>
-          
+
           <div className="history-values">
             <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <Activity size={14} style={{ color: '#3b82f6' }} />
@@ -65,9 +65,9 @@ const HistoryList = ({ history = [] }) => {
               <span>Humidade: <strong>{item.humidade || 0}%</strong></span>
             </div>
           </div>
-          
+
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            {getStatusIcon(item.som, item.chorar)}
+            {getStatusIcon(item.som, item.chorar, item.botao)}
           </div>
         </div>
       ))}
