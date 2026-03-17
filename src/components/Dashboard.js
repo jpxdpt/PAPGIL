@@ -27,9 +27,8 @@ const Dashboard = () => {
     timestamp: Date.now()
   });
 
-  const [isConnected, setIsConnected] = useState(false);
-  const [isMonitoring, setIsMonitoring] = useState(false);
   const [isBluetoothConnected, setIsBluetoothConnected] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [availableDevices, setAvailableDevices] = useState([]);
   const [showDeviceList, setShowDeviceList] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -294,20 +293,20 @@ const Dashboard = () => {
         console.log('Característica de notificação não disponível:', error.message);
       }
 
-      // Adicionar listener para desconexão
       device.device.addEventListener('gattserverdisconnected', () => {
-        console.log('ESP32 desconectado');
+        console.log('ESP32 desconectado (Evento)');
         setIsBluetoothConnected(false);
-        setIsConnected(false);
         setIsMonitoring(false);
         setGattServer(null);
         setButtonCharacteristic(null);
         setSoundCharacteristic(null);
         setSoundStatusCharacteristic(null);
+        setTemperatureCharacteristic(null);
+        setHumidityCharacteristic(null);
+        setBluetoothDevice(null);
       });
 
       setIsBluetoothConnected(true);
-      setIsConnected(true);
       setBluetoothDevice(device.device);
       setShowDeviceList(false);
 
@@ -401,12 +400,22 @@ const Dashboard = () => {
 
   // Desconectar do ESP32
   const disconnectESP32 = () => {
-    if (bluetoothDevice && gattServer) {
-      bluetoothDevice.gatt.disconnect();
-    }
+    console.log('Iniciando desconexão manual...');
+
+    // Resetar estados primeiro para feedback imediato na UI
     setIsBluetoothConnected(false);
-    setIsConnected(false);
     setIsMonitoring(false);
+
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+      try {
+        bluetoothDevice.gatt.disconnect();
+        console.log('GATT Disconnect chamado');
+      } catch (error) {
+        console.error('Erro ao desconectar GATT:', error);
+      }
+    }
+
+    // Limpar referências
     setBluetoothDevice(null);
     setGattServer(null);
     setButtonCharacteristic(null);
@@ -414,6 +423,8 @@ const Dashboard = () => {
     setSoundStatusCharacteristic(null);
     setTemperatureCharacteristic(null);
     setHumidityCharacteristic(null);
+
+    console.log('Estados de conexão resetados');
   };
 
   // LED é controlado automaticamente pelo ESP32 baseado no potenciômetro
@@ -480,7 +491,7 @@ const Dashboard = () => {
         newAlerts.push({
           id: Date.now(),
           type: 'som',
-          message: data.chorar ? '🚨 Bebé a chorar detectado!' : `🔊 Som elevado detectado (${data.som})`,
+          message: data.chorar ? '🚨 Bebé em apuros!' : `🔊 Som elevado detectado (${data.som})`,
           timestamp: Date.now(),
           severity: 'high'
         });
@@ -488,7 +499,7 @@ const Dashboard = () => {
         // Notificação do sistema
         if (settings.alertasAtivos) {
           sendSystemNotification(
-            data.chorar ? '🚨 Bebé a chorar!' : '🔊 Som elevado detectado',
+            data.chorar ? '🚨 Bebé em apuros!' : '🔊 Som elevado detectado',
             {
               body: `Valor do som: ${data.som} (Limiar: ${settings.limiteSom}) - Bebé sentado`,
               tag: 'sound-alert',

@@ -44,6 +44,9 @@ class MyServerCallbacks : public BLEServerCallbacks {
   void onDisconnect(BLEServer* pServer) {
     dispositivoConectado = false;
     Serial.println("Mobile desconectado.");
+    // Importante: reiniciar advertising para permitir reconexão
+    BLEDevice::startAdvertising();
+    Serial.println("Advertising reiniciado.");
   }
 };
 

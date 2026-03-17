@@ -54,7 +54,7 @@ const HistoryList = ({ history = [] }) => {
             </div>
             <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <AlertTriangle size={14} style={{ color: item.chorar ? '#ef4444' : '#10b981' }} />
-              <span>Estado: <strong>{item.chorar ? 'A chorar' : 'Calmo'}</strong></span>
+              <span>Estado: <strong>{item.chorar ? 'Em apuros' : 'Calmo'}</strong></span>
             </div>
             <div className="history-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <Thermometer size={14} style={{ color: '#ef4444' }} />
